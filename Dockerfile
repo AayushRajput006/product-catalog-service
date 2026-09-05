@@ -10,7 +10,7 @@ RUN mvn clean package -DskipTests
 
 
 # ---------- Runtime Stage ----------
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25.0.4_7-jre-alpine
 
 WORKDIR /app
 
