@@ -11,6 +11,8 @@ RUN mvn clean package -DskipTests
 
 # ---------- Runtime Stage ----------
 FROM eclipse-temurin:25.0.4_7-jre-alpine
+# Install available Alpine security updates
+RUN apk upgrade --no-cache
 
 WORKDIR /app
 
