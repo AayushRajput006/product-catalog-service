@@ -13,11 +13,9 @@ permissions:
 
 jobs:
   build-and-test:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout source code
         uses: actions/checkout@v5
 
@@ -25,7 +23,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: "25"
           cache: maven
 
       - name: Build and run tests
@@ -41,8 +39,14 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_ID=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):${{ github.sha }}
-          docker build -t $IMAGE_ID .
-          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
+          docker build -t "$IMAGE_ID" .
+          echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.4
+
+      - name: Scan Docker image for vulnerabilities
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$IMAGE_ID"
 
       - name: Push Docker image
-        run: docker push $IMAGE_ID
+        run: docker push "$IMAGE_ID"
