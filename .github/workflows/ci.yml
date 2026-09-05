@@ -39,19 +39,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker image
-        run: |
-          IMAGE_ID=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]'):${{ github.sha }}
-          docker build -t $IMAGE_ID .
-          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
+        run: docker build -t ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }} .
 
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          image-ref: ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
           format: table
           exit-code: 1
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
       - name: Push Docker image
-        run: docker push $IMAGE_ID
+        run: docker push ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
