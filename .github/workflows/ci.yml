@@ -1,54 +1,144 @@
-name: Product Catalog CI
+name: Product Catalog CI/CD
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
   pull_request:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
-  build-and-test:
-
+  build-test-scan-deploy:
     runs-on: ubuntu-latest
 
     steps:
-
+      # -----------------------------------
+      # 1. Checkout source code
+      # -----------------------------------
       - name: Checkout source code
         uses: actions/checkout@v5
 
+      # -----------------------------------
+      # 2. Set up Java
+      # -----------------------------------
       - name: Set up Java 25
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: "25"
           cache: maven
 
+      # -----------------------------------
+      # 3. Build and run automated tests
+      # -----------------------------------
       - name: Build and run tests
         run: mvn clean test
 
+      # -----------------------------------
+      # 4. Build Docker image
+      # -----------------------------------
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }} \
+            .
+
+      # -----------------------------------
+      # 5. Security scan
+      # -----------------------------------
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      # -----------------------------------
+      # The remaining steps happen only
+      # after code is actually pushed.
+      # Pull requests stop after Trivy.
+      # -----------------------------------
+
+      # 6. Authenticate to GHCR
       - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: docker build -t ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }} .
-
-      - name: Scan Docker image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
-          format: table
-          exit-code: 1
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-
+      # -----------------------------------
+      # 7. Push image to GHCR
+      # -----------------------------------
       - name: Push Docker image
-        run: docker push ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
+        if: github.event_name == 'push'
+        run: |
+          docker push \
+            ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
+
+      # -----------------------------------
+      # 8. Authenticate to AWS using OIDC
+      # -----------------------------------
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::893692751471:role/product-catalog-github-actions-role
+          aws-region: ap-south-1
+
+      # -----------------------------------
+      # 9. Configure kubectl for EKS
+      # -----------------------------------
+      - name: Update EKS kubeconfig
+        if: github.event_name == 'push'
+        run: |
+          aws eks update-kubeconfig \
+            --region ap-south-1 \
+            --name product-catalog-eks
+
+      # -----------------------------------
+      # 10. Update application image
+      # -----------------------------------
+      - name: Deploy latest image to EKS
+        if: github.event_name == 'push'
+        run: |
+          kubectl set image \
+            deployment/product-catalog-service \
+            product-catalog-service=ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
+
+      # -----------------------------------
+      # 11. Wait for Kubernetes rollout
+      # -----------------------------------
+      - name: Wait for rollout
+        if: github.event_name == 'push'
+        run: |
+          kubectl rollout status \
+            deployment/product-catalog-service \
+            --timeout=180s
+
+      # -----------------------------------
+      # 12. Verify deployment
+      # -----------------------------------
+      - name: Verify deployment
+        if: github.event_name == 'push'
+        run: |
+          echo "===== Pods ====="
+          kubectl get pods
+
+          echo "===== Deployment ====="
+          kubectl get deployment product-catalog-service
+
+          echo "===== Service ====="
+          kubectl get service product-catalog-service
