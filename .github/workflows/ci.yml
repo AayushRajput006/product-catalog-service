@@ -124,7 +124,7 @@ jobs:
           helm upgrade --install product-catalog ./product-catalog-chart \
             --set image.tag=${{ github.sha }} \
             --wait \
-            --timeout 5m}
+            --timeout 5m
 
       # -----------------------------------
       # 11. Wait for Kubernetes rollout
