@@ -65,12 +65,13 @@ jobs:
           severity: CRITICAL,HIGH
 
       # -----------------------------------
-      # The remaining steps happen only
-      # after code is actually pushed.
-      # Pull requests stop after Trivy.
+      # Deployment steps below run only
+      # for actual pushes, not PRs
       # -----------------------------------
 
+      # -----------------------------------
       # 6. Authenticate to GHCR
+      # -----------------------------------
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
         uses: docker/login-action@v3
@@ -107,6 +108,7 @@ jobs:
           aws eks update-kubeconfig \
             --region ap-south-1 \
             --name product-catalog-eks
+
       # -----------------------------------
       # 10. Set up Helm
       # -----------------------------------
@@ -114,8 +116,7 @@ jobs:
         if: github.event_name == 'push'
         uses: azure/setup-helm@v4
 
-
-        # -----------------------------------
+      # -----------------------------------
       # 11. Deploy using Helm
       # -----------------------------------
       - name: Deploy application with Helm
@@ -123,28 +124,28 @@ jobs:
         run: |
           helm upgrade --install product-catalog ./product-catalog-chart \
             --set image.tag=${{ github.sha }} \
+            --force-conflicts \
             --wait \
             --timeout 5m
 
       # -----------------------------------
-      # 11. Wait for Kubernetes rollout
+      # 12. Verify Helm release
       # -----------------------------------
-      - name: Wait for rollout
+      - name: Verify Helm release
         if: github.event_name == 'push'
         run: |
-          kubectl rollout status \
-            deployment/product-catalog-service \
-            --timeout=180s
-
-            # -----------------------------------
-      # 12. Verify deployment
-      # -----------------------------------
-      - name: Verify deployment
-        if: github.event_name == 'push'
-        run: |
-          echo "===== Helm Release ====="
+          echo "===== Helm Status ====="
           helm status product-catalog
 
+          echo "===== Helm History ====="
+          helm history product-catalog
+
+      # -----------------------------------
+      # 13. Verify Kubernetes deployment
+      # -----------------------------------
+      - name: Verify Kubernetes deployment
+        if: github.event_name == 'push'
+        run: |
           echo "===== Pods ====="
           kubectl get pods
 
@@ -156,3 +157,18 @@ jobs:
 
           echo "===== Service ====="
           kubectl get service product-catalog-service
+
+      # -----------------------------------
+      # 14. Verify deployed image
+      # -----------------------------------
+      - name: Verify deployed image
+        if: github.event_name == 'push'
+        run: |
+          echo "Expected image:"
+          echo "ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}"
+
+          echo "Currently deployed image:"
+          kubectl get deployment product-catalog-service \
+            -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+          echo
