@@ -1,0 +1,40 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/aayushrajput006/product-catalog-service
+  tag: "a7d8bf7049922140f961176debbaa6c38bfe43ce"
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+
+containerPort: 8080
+
+database:
+  url: "jdbc:postgresql://product-catalog-postgres.c5iqow0eg429.ap-south-1.rds.amazonaws.com:5432/product_catalog"
+
+existingSecret:
+  name: product-catalog-db-secret
+  usernameKey: DB_USERNAME
+  passwordKey: DB_PASSWORD
+
+readinessProbe:
+  path: /actuator/health
+  initialDelaySeconds: 20
+  periodSeconds: 10
+
+livenessProbe:
+  path: /actuator/health
+  initialDelaySeconds: 40
+  periodSeconds: 20
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+  limits:
+    cpu: "750m"
+    memory: "1Gi"

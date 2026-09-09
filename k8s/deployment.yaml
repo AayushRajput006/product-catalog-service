@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-catalog-service
+  labels:
+    app: product-catalog-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: product-catalog-service
+
+  template:
+    metadata:
+      labels:
+        app: product-catalog-service
+
+    spec:
+      containers:
+        - name: product-catalog-service
+          image: ghcr.io/aayushrajput006/product-catalog-service:45c5d4c31b40cfe8e79ec4084b50945e6705737c
+
+          ports:
+            - containerPort: 8080
+
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://product-catalog-postgres.c5iqow0eg429.ap-south-1.rds.amazonaws.com:5432/product_catalog
+
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: product-catalog-db-secret
+                  key: DB_USERNAME
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: product-catalog-db-secret
+                  key: DB_PASSWORD
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+
+            limits:
+              cpu: "750m"
+              memory: "1Gi"

@@ -31,3 +31,26 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Kubernetes local secrets
+k8s/secret.yaml
+
+# Java / Maven
+target/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Terraform local/state files
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.tfstate.lock.info
+*.tfplan
+
+# Local Helm render output
+rendered-helm.yaml
+
+# Logs
+*.log

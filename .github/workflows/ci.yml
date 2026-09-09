@@ -1,4 +1,4 @@
-name: Product Catalog CI/CD
+name: Product Catalog CI/CD - Helm EKS
 
 on:
   push:
@@ -107,16 +107,24 @@ jobs:
           aws eks update-kubeconfig \
             --region ap-south-1 \
             --name product-catalog-eks
+      # -----------------------------------
+      # 10. Set up Helm
+      # -----------------------------------
+      - name: Set up Helm
+        if: github.event_name == 'push'
+        uses: azure/setup-helm@v4
 
+
+        # -----------------------------------
+      # 11. Deploy using Helm
       # -----------------------------------
-      # 10. Update application image
-      # -----------------------------------
-      - name: Deploy latest image to EKS
+      - name: Deploy application with Helm
         if: github.event_name == 'push'
         run: |
-          kubectl set image \
-            deployment/product-catalog-service \
-            product-catalog-service=ghcr.io/aayushrajput006/product-catalog-service:${{ github.sha }}
+          helm upgrade --install product-catalog ./product-catalog-chart \
+            --set image.tag=${{ github.sha }} \
+            --wait \
+            --timeout 5m}
 
       # -----------------------------------
       # 11. Wait for Kubernetes rollout
@@ -128,17 +136,23 @@ jobs:
             deployment/product-catalog-service \
             --timeout=180s
 
-      # -----------------------------------
+            # -----------------------------------
       # 12. Verify deployment
       # -----------------------------------
       - name: Verify deployment
         if: github.event_name == 'push'
         run: |
+          echo "===== Helm Release ====="
+          helm status product-catalog
+
           echo "===== Pods ====="
           kubectl get pods
 
           echo "===== Deployment ====="
           kubectl get deployment product-catalog-service
+
+          echo "===== Rollout History ====="
+          kubectl rollout history deployment/product-catalog-service
 
           echo "===== Service ====="
           kubectl get service product-catalog-service
